@@ -50,8 +50,11 @@ jobs:
       - name: Configure
         run: xmake f -m release -p ${{ matrix.platform }} -a ${{ matrix.arch }} -y
 
-      - name: Build
-        run: xmake build -y rmg rmg_tests
+      - name: Build rmg
+        run: xmake build -y rmg
+
+      - name: Build self-tests
+        run: xmake build -y rmg_tests
 
       - name: Self-tests
         run: xmake run rmg_tests
