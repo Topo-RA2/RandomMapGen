@@ -1,0 +1,9 @@
+build/
+.xmake/
+.xmake-cache/
+.vscode/
+out/
+*.map
+*.yrini
+*.tmp
+.DS_Store
