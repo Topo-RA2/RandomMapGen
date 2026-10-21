@@ -46,6 +46,19 @@ xmake run rmg --version
 
 xmake 会按锁定版本获取 `nlohmann_json` 和 OpenSSL 3。
 
+## Release
+
+推送匹配 `v*` 的 tag 会触发正式发布。工作流将构建并测试 Windows x64 和 Linux x86_64，然后发布：
+
+```text
+RandomMapGen-<tag>-windows-x64.zip
+RandomMapGen-<tag>-windows-x64.zip.sha256
+RandomMapGen-<tag>-linux-x86_64.tar.gz
+RandomMapGen-<tag>-linux-x86_64.tar.gz.sha256
+```
+
+发布包包含二进制、README、AGPL 许可证、NOTICE、第三方声明、示例和文档。
+
 ## 快速开始
 
 直接指定底层地图种子：

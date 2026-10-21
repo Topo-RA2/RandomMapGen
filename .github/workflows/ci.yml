@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
   workflow_dispatch:
 
@@ -19,7 +20,7 @@ jobs:
             platform: windows
             arch: x64
             binary: build/windows/x64/release/rmg.exe
-          - os: ubuntu-latest
+          - os: ubuntu-22.04
             platform: linux
             arch: x86_64
             binary: build/linux/x86_64/release/rmg
@@ -69,3 +70,77 @@ jobs:
           name: rmg-${{ matrix.platform }}-${{ matrix.arch }}
           path: ${{ matrix.binary }}
           if-no-files-found: error
+
+      - name: Package Windows release
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $packageName = "RandomMapGen-${{ github.ref_name }}-windows-x64"
+          $stage = Join-Path $env:RUNNER_TEMP $packageName
+          New-Item -ItemType Directory -Path $stage | Out-Null
+          Copy-Item "${{ matrix.binary }}" (Join-Path $stage "rmg.exe")
+          Copy-Item "LICENSE", "NOTICE.md", "THIRD_PARTY_NOTICES.md", "README.md" $stage
+          Copy-Item "examples" $stage -Recurse
+          Copy-Item "docs" $stage -Recurse
+          $archive = Join-Path $env:RUNNER_TEMP "$packageName.zip"
+          Compress-Archive -Path (Join-Path $stage "*") -DestinationPath $archive
+          $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -LiteralPath "$archive.sha256" -Value "$hash  $packageName.zip" -Encoding ascii
+
+      - name: Package Linux release
+        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          package_name="RandomMapGen-${GITHUB_REF_NAME}-linux-x86_64"
+          stage="$RUNNER_TEMP/$package_name"
+          mkdir -p "$stage"
+          cp "${{ matrix.binary }}" "$stage/rmg"
+          cp LICENSE NOTICE.md THIRD_PARTY_NOTICES.md README.md "$stage/"
+          cp -R examples docs "$stage/"
+          tar -C "$RUNNER_TEMP" -czf "$RUNNER_TEMP/$package_name.tar.gz" "$package_name"
+          cd "$RUNNER_TEMP"
+          sha256sum "$package_name.tar.gz" > "$package_name.tar.gz.sha256"
+
+      - name: Upload Windows release package
+        if: runner.os == 'Windows' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: rmg-release-windows-x64
+          path: |
+            ${{ runner.temp }}/RandomMapGen-${{ github.ref_name }}-windows-x64.zip
+            ${{ runner.temp }}/RandomMapGen-${{ github.ref_name }}-windows-x64.zip.sha256
+          if-no-files-found: error
+
+      - name: Upload Linux release package
+        if: runner.os == 'Linux' && startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@v4
+        with:
+          name: rmg-release-linux-x86_64
+          path: |
+            ${{ runner.temp }}/RandomMapGen-${{ github.ref_name }}-linux-x86_64.tar.gz
+            ${{ runner.temp }}/RandomMapGen-${{ github.ref_name }}-linux-x86_64.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download release packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: rmg-release-*
+          merge-multiple: true
+          path: dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: RandomMapGen ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
+          files: dist/*
